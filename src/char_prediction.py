@@ -5,6 +5,7 @@ Author: Thibault Douzon
 Date:   2019-09-16
         23:40:29
 mail:   douzont@gmail.com
+Playing with https://pytorch.org/tutorials/beginner/transformer_tutorial.html
 """
 
 import numpy as np
@@ -44,13 +45,13 @@ class Embedding(nn.Module):
         self._max_sequence_size = max_sequence_size
 
         self.embedding = nn.Embedding(vocabulary_size, model_size)
-        self.register_positional_encoding()
+        self._register_positional_encoding()
 
-    def register_positional_encoding(self):
-        """[summary]
-
+    def _register_positional_encoding(self) -> None:
+        """Computes the positional encoding
+        
         Returns:
-            [type] -- [description]
+            None --
         """
 
         positional_encoding = torch.zeros(self._max_sequence_size,
@@ -73,14 +74,14 @@ class Embedding(nn.Module):
         positional_encoding.unsqueeze_(1)
         self.register_buffer('positional_encoding', positional_encoding)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """[summary]
+    def forward(self, x: torch.LongTensor) -> torch.Tensor:
+        """Embedds the tensor and add positional encoding
 
         Arguments:
-            x {torch.Tensor} -- [description]
+            x {torch.LongTensor} -- (S, N) tensor containing character indices
 
         Returns:
-            torch.Tensor -- [description]
+            torch.Tensor -- (S, N, D) embedded input
         """
         xx = self.embedding(x[:self._max_sequence_size, ...])
         xx += self.positional_encoding[:min(xx.size(0),
