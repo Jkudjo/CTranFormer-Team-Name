@@ -5,12 +5,15 @@ Author: Thibault Douzon
 Date:   2019-09-16
         23:40:29
 mail:   douzont@gmail.com
+Playing with https://pytorch.org/tutorials/beginner/transformer_tutorial.html
 """
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+import math
 
 import src.utils
 
@@ -21,10 +24,9 @@ class Model(nn.Module):
         v, m = args
         self.embedding = Embedding(v, m)
         self.transformer = nn.modules.transformer.Transformer()
-        print(self.transformer.d_model)
-        pass
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
+        # TODO: Add masks
         xx = self.embedding(x)
         yy = self.embedding(y)
         zz = self.transformer(xx, yy)
@@ -36,50 +38,66 @@ class Embedding(nn.Module):
     def __init__(self,
                  vocabulary_size: int,
                  model_size: int,
-                 max_sequence_size: int = 256):
+                 max_sequence_size: int = 16):
         super().__init__()
         self._vocabulary_size = vocabulary_size
         self._model_size = model_size
         self._max_sequence_size = max_sequence_size
 
         self.embedding = nn.Embedding(vocabulary_size, model_size)
-        self.positional_encoding = self._positional_encoding()
+        self._register_positional_encoding()
 
-    def _positional_encoding(self):
+    def _register_positional_encoding(self) -> None:
+        """Computes the positional encoding
+        
+        Returns:
+            None --
+        """
+
         positional_encoding = torch.zeros(self._max_sequence_size,
                                           self._model_size)
 
         position = (
-            torch.arange(0, self._max_sequence_size).view(-1, 1).float() *
+            torch.arange(0, self._max_sequence_size,
+                         dtype=torch.float64).view(-1, 1) *
             torch.ones(self._max_sequence_size,
-                       self._model_size // 2)).double()
-        harmonic = (10000**(
-            torch.arange(0, self._model_size, 2).float() *
-            torch.ones(self._max_sequence_size, self._model_size // 2) /
-            self._model_size)).double()
+                       self._model_size // 2,
+                       dtype=torch.float64))
 
-        positional_encoding[:, ::2] = torch.sin(position * harmonic)
-        positional_encoding[:, 1::2] = torch.cos(position * harmonic)
+        harmonic = 10000**(torch.arange(0, self._model_size,
+                                        2, dtype=torch.float64)
+                           / self._model_size)
 
-        return positional_encoding.unsqueeze(1)
+        positional_encoding[:, ::2] = torch.sin(position / harmonic)
+        positional_encoding[:, 1::2] = torch.cos(position / harmonic)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        forward [summary]
-        Assert input x is batched.
+        positional_encoding.unsqueeze_(1)
+        self.register_buffer('positional_encoding', positional_encoding)
+
+    def forward(self, x: torch.LongTensor) -> torch.Tensor:
+        """Embedds the tensor and add positional encoding
+
+        Arguments:
+            x {torch.LongTensor} -- (S, N) tensor containing character indices
+
+        Returns:
+            torch.Tensor -- (S, N, D) embedded input
         """
         xx = self.embedding(x[:self._max_sequence_size, ...])
-        xx += self.positional_encoding[:min(xx.size(0), self._max_sequence_size), ...]
+        xx += self.positional_encoding[:min(xx.size(0),
+                                            self._max_sequence_size), ...]
 
         return xx
 
 
 def main():
-    model = Model(10, 512)
+    model = Model(10, 16)
 
-    v = torch.Tensor([[0], [0], [1], [2]]).long()
+    v = torch.arange(0, 10).view(-1, 1).long()
 
     print(model.embedding(v))
+
+
 
 
 if __name__ == '__main__':
