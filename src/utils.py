@@ -13,6 +13,7 @@ import itertools
 import string
 
 import numpy as np
+import torch
 
 from typing import Dict, List, Iterable
 
@@ -37,6 +38,18 @@ def vectorize(team_name: str, vocabulary_d: Dict[str, int]) -> List[int]:
         vocabulary_d[c] if c in vocabulary_d else vocabulary_d[UNK]
         for c in team_name
     ] + [vocabulary_d[END]])
+    
+
+def get_padding_mask(x: torch.Tensor) -> torch.ByteTensor:
+    """get_padding_mask [summary]
+    
+    Args:
+        x (torch.Tensor): (S/T, N) tensor
+    
+    Returns:
+        torch.ByteTensor: (N, S/T)
+    """
+    return torch.where(x != alphabet_d[PAD], False, True).transpose(1, 0)
 
 
 def main():

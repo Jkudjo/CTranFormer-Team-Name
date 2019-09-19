@@ -23,15 +23,35 @@ class Model(nn.Module):
         super().__init__()
         v, m = args
         self.embedding = Embedding(v, m)
-        self.transformer = nn.modules.transformer.Transformer()
+        self.transformer: torch.modules.transformer.Transformer = nn.modules.transformer.Transformer()
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor):
+    def forward(self, x: torch.Tensor,
+                y: torch.Tensor,
+                x_mask: torch.Tensor,
+                y_mask: torch.Tensor):
         # TODO: Add masks
         xx = self.embedding(x)
         yy = self.embedding(y)
-        zz = self.transformer(xx, yy)
+        
+        x_padding_mask = self._padding_mask(x)
+        y_padding_mask = self._padding_mask(y)
+        zz = self.transformer(xx, yy, 
+                              src_mask=x_mask, tgt_mask=y_mask,
+                              src_key_padding_mask=x_padding_mask, tgt_key_padding_mask=y_padding_mask)
 
         return zz
+    
+    @staticmethod
+    def _padding_mask(x: torch.Tensor) -> torch.ByteTensor:
+        """_padding_mask [summary]
+        
+        Args:
+            x (torch.Tensor): (S/T, N) input tensor
+        
+        Returns:
+            torch.ByteTensor: (N, S/T) byte tensor for padding
+        """
+        return src.utils.get_padding_mask(x)
 
 
 class Embedding(nn.Module):
@@ -57,16 +77,15 @@ class Embedding(nn.Module):
         positional_encoding = torch.zeros(self._max_sequence_size,
                                           self._model_size)
 
-        position = (
-            torch.arange(0, self._max_sequence_size,
-                         dtype=torch.float64).view(-1, 1) *
-            torch.ones(self._max_sequence_size,
-                       self._model_size // 2,
-                       dtype=torch.float64))
+        position = (torch.arange(
+            0, self._max_sequence_size, dtype=torch.float64).view(-1, 1) *
+                    torch.ones(self._max_sequence_size,
+                               self._model_size // 2,
+                               dtype=torch.float64))
 
-        harmonic = 10000**(torch.arange(0, self._model_size,
-                                        2, dtype=torch.float64)
-                           / self._model_size)
+        harmonic = 10000**(
+            torch.arange(0, self._model_size, 2, dtype=torch.float64) /
+            self._model_size)
 
         positional_encoding[:, ::2] = torch.sin(position / harmonic)
         positional_encoding[:, 1::2] = torch.cos(position / harmonic)
@@ -84,8 +103,8 @@ class Embedding(nn.Module):
             torch.Tensor -- (S, N, D) embedded input
         """
         xx = self.embedding(x[:self._max_sequence_size, ...])
-        xx += self.positional_encoding[:min(xx.size(0),
-                                            self._max_sequence_size), ...]
+        xx += self.positional_encoding[:min(xx.size(0), self._max_sequence_size
+                                            ), ...]
 
         return xx
 
@@ -96,8 +115,6 @@ def main():
     v = torch.arange(0, 10).view(-1, 1).long()
 
     print(model.embedding(v))
-
-
 
 
 if __name__ == '__main__':
