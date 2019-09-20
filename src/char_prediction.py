@@ -19,12 +19,19 @@ import src.utils
 
 
 class Model(nn.Module):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, vocabulary_size, model_size=512, head_n=8, encoder_layers_n=6,
+                 decoder_layers_n=6, feedforward_size=2048):
         super().__init__()
-        v, m = args
-        self.embedding = Embedding(v, m)
-        self.transformer = nn.modules.transformer.Transformer(
-        )
+        self.vocabulary_size = vocabulary_size
+        self.model_size = model_size
+        self.head_n = head_n
+        self.encoder_layers_n = encoder_layers_n
+        self.decoder_layers_n = decoder_layers_n
+        self.feedforward_size = feedforward_size
+
+        self.embedding = Embedding(self.vocabulary_size, self.model_size)
+        self.transformer = nn.modules.transformer.Transformer()
+        self.liner = nn.Linear()
 
     def forward(self, x: torch.Tensor, y: torch.Tensor, x_mask: torch.Tensor,
                 y_mask: torch.Tensor):
