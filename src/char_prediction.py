@@ -23,24 +23,28 @@ class Model(nn.Module):
         super().__init__()
         v, m = args
         self.embedding = Embedding(v, m)
-        self.transformer: torch.modules.transformer.Transformer = nn.modules.transformer.Transformer()
+        self.transformer = nn.modules.transformer.Transformer(
+        )
 
-    def forward(self, x: torch.Tensor,
-                y: torch.Tensor,
-                x_mask: torch.Tensor,
+    def forward(self, x: torch.Tensor, y: torch.Tensor, x_mask: torch.Tensor,
                 y_mask: torch.Tensor):
         # TODO: Add masks
         xx = self.embedding(x)
         yy = self.embedding(y)
-        
+
+        y_mask = self.transformer.generate_square_subsequent_mask(y.size(0))
+
         x_padding_mask = self._padding_mask(x)
         y_padding_mask = self._padding_mask(y)
-        zz = self.transformer(xx, yy, 
-                              src_mask=x_mask, tgt_mask=y_mask,
-                              src_key_padding_mask=x_padding_mask, tgt_key_padding_mask=y_padding_mask)
+        zz = self.transformer(xx,
+                              yy,
+                              src_mask=x_mask,
+                              tgt_mask=y_mask,
+                              src_key_padding_mask=x_padding_mask,
+                              tgt_key_padding_mask=y_padding_mask)
 
         return zz
-    
+
     @staticmethod
     def _padding_mask(x: torch.Tensor) -> torch.ByteTensor:
         """_padding_mask [summary]
