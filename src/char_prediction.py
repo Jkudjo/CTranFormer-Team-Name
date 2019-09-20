@@ -20,7 +20,7 @@ import src.utils
 
 class Model(nn.Module):
     def __init__(self, vocabulary_size, model_size=512, head_n=8, encoder_layers_n=6,
-                 decoder_layers_n=6, feedforward_size=2048):
+                 decoder_layers_n=6, feedforward_size=2048, dropout_transformer=0.1):
         super().__init__()
         self.vocabulary_size = vocabulary_size
         self.model_size = model_size
@@ -28,18 +28,27 @@ class Model(nn.Module):
         self.encoder_layers_n = encoder_layers_n
         self.decoder_layers_n = decoder_layers_n
         self.feedforward_size = feedforward_size
+        self.dropout_transformer = dropout_transformer
 
         self.embedding = Embedding(self.vocabulary_size, self.model_size)
-        self.transformer = nn.modules.transformer.Transformer()
-        self.liner = nn.Linear()
+        self.transformer = nn.modules.transformer.Transformer(d_model=self.model_size,
+                                                              nhead=self.head_n,
+                                                              num_encoder_layers=self.encoder_layers_n,
+                                                              num_decoder_layers=self.decoder_layers_n,
+                                                              dim_feedforward=self.feedforward_size,
+                                                              dropout=self.dropout_transformer)
+        self.linear = nn.Linear(self.model_size, self.vocabulary_size)
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, x_mask: torch.Tensor,
-                y_mask: torch.Tensor):
-        # TODO: Add masks
+    def forward(self, x: torch.Tensor, y: torch.Tensor,
+                x_mask: torch.Tensor = None,
+                y_mask: torch.Tensor = None):
+
         xx = self.embedding(x)
         yy = self.embedding(y)
 
-        y_mask = self.transformer.generate_square_subsequent_mask(y.size(0))
+        if y_mask is None:
+            y_mask = self.transformer.generate_square_subsequent_mask(
+                y.size(0))
 
         x_padding_mask = self._padding_mask(x)
         y_padding_mask = self._padding_mask(y)
@@ -49,16 +58,17 @@ class Model(nn.Module):
                               tgt_mask=y_mask,
                               src_key_padding_mask=x_padding_mask,
                               tgt_key_padding_mask=y_padding_mask)
-
+        zz = self.linear(zz)
+        zz = F.gumbel_softmax(zz)
         return zz
 
     @staticmethod
     def _padding_mask(x: torch.Tensor) -> torch.ByteTensor:
         """_padding_mask [summary]
-        
+
         Args:
             x (torch.Tensor): (S/T, N) input tensor
-        
+
         Returns:
             torch.ByteTensor: (N, S/T) byte tensor for padding
         """
@@ -80,7 +90,7 @@ class Embedding(nn.Module):
 
     def _register_positional_encoding(self) -> None:
         """Computes the positional encoding
-        
+
         Returns:
             None --
         """
@@ -90,9 +100,9 @@ class Embedding(nn.Module):
 
         position = (torch.arange(
             0, self._max_sequence_size, dtype=torch.float64).view(-1, 1) *
-                    torch.ones(self._max_sequence_size,
-                               self._model_size // 2,
-                               dtype=torch.float64))
+            torch.ones(self._max_sequence_size,
+                       self._model_size // 2,
+                       dtype=torch.float64))
 
         harmonic = 10000**(
             torch.arange(0, self._model_size, 2, dtype=torch.float64) /
@@ -114,18 +124,19 @@ class Embedding(nn.Module):
             torch.Tensor -- (S, N, D) embedded input
         """
         xx = self.embedding(x[:self._max_sequence_size, ...])
-        xx += self.positional_encoding[:min(xx.size(0), self._max_sequence_size
-                                            ), ...]
+        xx += self.positional_encoding[:min(xx.size(0),
+                                            self._max_sequence_size), ...]
 
         return xx
 
 
 def main():
+    src.utils.set_random_seed(100)
     model = Model(10, 16)
-
+    print(model.model_size)
     v = torch.arange(0, 10).view(-1, 1).long()
 
-    print(model.embedding(v))
+    print(model(v, v))
 
 
 if __name__ == '__main__':

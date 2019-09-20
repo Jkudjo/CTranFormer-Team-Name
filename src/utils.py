@@ -82,7 +82,9 @@ def get_padding_mask(x: torch.Tensor) -> torch.ByteTensor:
     Returns:
         torch.ByteTensor: (N, S/T)
     """
-    return torch.where(x != alphabet_d[PAD], False, True).transpose(1, 0).bool()
+    return torch.where(x != alphabet_d[PAD],
+                       torch.Tensor([False]),
+                       torch.Tensor([True])).transpose(1, 0).bool()
 
 
 def main():
