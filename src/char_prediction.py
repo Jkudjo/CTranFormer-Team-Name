@@ -60,7 +60,7 @@ class Model(nn.Module):
                               tgt_key_padding_mask=y_padding_mask)
         zz = self.linear(zz)
         zz = F.gumbel_softmax(zz)
-        return zz
+        return zz.transpose(1, 0)
 
     @staticmethod
     def _padding_mask(x: torch.Tensor) -> torch.ByteTensor:
@@ -79,7 +79,7 @@ class Embedding(nn.Module):
     def __init__(self,
                  vocabulary_size: int,
                  model_size: int,
-                 max_sequence_size: int = 16):
+                 max_sequence_size: int = 1000):  # ! TODO : propagate this parameter
         super().__init__()
         self._vocabulary_size = vocabulary_size
         self._model_size = model_size
@@ -134,7 +134,7 @@ def main():
     src.utils.set_random_seed(100)
     model = Model(10, 16)
     print(model.model_size)
-    v = torch.arange(0, 10).view(-1, 1).long()
+    v = torch.arange(0, 10).view(-1, 2).long()
 
     print(model(v, v))
 

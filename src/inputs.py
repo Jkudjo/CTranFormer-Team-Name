@@ -76,11 +76,12 @@ class TeamNameLoader:
 
 
 def get_dataset(path: pathlib.Path,
+                mask: bool,
                 batch_size: int,
                 shuffle: bool = True,
                 drop_last: bool = False):
     dataset = TeamNameDataset(path)
-    return TeamNameLoader(dataset, mask=True,
+    return TeamNameLoader(dataset, mask=mask,
                           batch_size=batch_size, drop_last=drop_last)
 
 
