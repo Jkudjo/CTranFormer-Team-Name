@@ -20,7 +20,8 @@ import src.utils
 
 class Model(nn.Module):
     def __init__(self, vocabulary_size, model_size=512, head_n=8, encoder_layers_n=6,
-                 decoder_layers_n=6, feedforward_size=2048, dropout_transformer=0.1):
+                 decoder_layers_n=6, feedforward_size=2048, dropout_transformer=0.1,
+                 device='cpu'):
         super().__init__()
         self.vocabulary_size = vocabulary_size
         self.model_size = model_size
@@ -29,15 +30,16 @@ class Model(nn.Module):
         self.decoder_layers_n = decoder_layers_n
         self.feedforward_size = feedforward_size
         self.dropout_transformer = dropout_transformer
+        self.device = device
 
-        self.embedding = Embedding(self.vocabulary_size, self.model_size)
+        self.embedding = Embedding(self.vocabulary_size, self.model_size, device=self.device)
         self.transformer = nn.modules.transformer.Transformer(d_model=self.model_size,
                                                               nhead=self.head_n,
                                                               num_encoder_layers=self.encoder_layers_n,
                                                               num_decoder_layers=self.decoder_layers_n,
                                                               dim_feedforward=self.feedforward_size,
-                                                              dropout=self.dropout_transformer)
-        self.linear = nn.Linear(self.model_size, self.vocabulary_size)
+                                                              dropout=self.dropout_transformer).to(self.device)
+        self.linear = nn.Linear(self.model_size, self.vocabulary_size).to(self.device)
 
     def forward(self, x: torch.Tensor, y: torch.Tensor,
                 x_mask: torch.Tensor = None,
@@ -48,22 +50,32 @@ class Model(nn.Module):
 
         if y_mask is None:
             y_mask = self.transformer.generate_square_subsequent_mask(
-                y.size(0))
+                y.size(0)).to(self.device)
 
         x_padding_mask = self._padding_mask(x)
         y_padding_mask = self._padding_mask(y)
         zz = self.transformer(xx,
                               yy,
                               src_mask=x_mask,
-                              tgt_mask=y_mask,
-                              src_key_padding_mask=x_padding_mask,
-                              tgt_key_padding_mask=y_padding_mask)
+                              tgt_mask=y_mask,)
+                              #src_key_padding_mask=x_padding_mask,
+                              #tgt_key_padding_mask=y_padding_mask)
         zz = self.linear(zz)
-        zz = F.gumbel_softmax(zz)
+        zz = F.log_softmax(zz, dim=-1)
         return zz.transpose(1, 0)
+    
+    def greedy_decode(self, x):
+        max_len = 20
+        ys = torch.ones(1, 1).fill_(src.utils.alphabet_d[src.utils.BEG]).to(self.device).long()
+        for i in range(max_len-1):
+            out = self(x, ys)
+            next_word = torch.argmax(out, dim = -1)
+            next_word = next_word[0][-1].detach().item()
+            ys = torch.cat([ys, 
+                            torch.ones(1, 1).fill_(next_word).to(self.device).long()], dim=0)
+        return ys
 
-    @staticmethod
-    def _padding_mask(x: torch.Tensor) -> torch.ByteTensor:
+    def _padding_mask(self, x: torch.Tensor) -> torch.ByteTensor:
         """_padding_mask [summary]
 
         Args:
@@ -72,20 +84,22 @@ class Model(nn.Module):
         Returns:
             torch.ByteTensor: (N, S/T) byte tensor for padding
         """
-        return src.utils.get_padding_mask(x)
+        return src.utils.get_padding_mask(x, device=self.device)
 
 
 class Embedding(nn.Module):
     def __init__(self,
                  vocabulary_size: int,
                  model_size: int,
-                 max_sequence_size: int = 1000):  # ! TODO : propagate this parameter
+                 max_sequence_size: int = 1000,
+                 device='cpu'):  # ! TODO : propagate this parameter
         super().__init__()
         self._vocabulary_size = vocabulary_size
         self._model_size = model_size
         self._max_sequence_size = max_sequence_size
+        self.device = device
 
-        self.embedding = nn.Embedding(vocabulary_size, model_size)
+        self.embedding = nn.Embedding(vocabulary_size, model_size).to(self.device)
         self._register_positional_encoding()
 
     def _register_positional_encoding(self) -> None:
@@ -112,7 +126,7 @@ class Embedding(nn.Module):
         positional_encoding[:, 1::2] = torch.cos(position / harmonic)
 
         positional_encoding.unsqueeze_(1)
-        self.register_buffer('positional_encoding', positional_encoding)
+        self.register_buffer('positional_encoding', positional_encoding.to(self.device))
 
     def forward(self, x: torch.LongTensor) -> torch.Tensor:
         """Embedds the tensor and add positional encoding
@@ -132,11 +146,15 @@ class Embedding(nn.Module):
 
 def main():
     src.utils.set_random_seed(100)
-    model = Model(10, 16)
+    
+    device = torch.device('cuda:0')
+    # device = torch.device('cpu')
+    
+    model = Model(10, 16, 4, 4, 4, 128, 0.1, device)
     print(model.model_size)
-    v = torch.arange(0, 10).view(-1, 2).long()
+    v = torch.arange(0, 10).view(-1, 1).long().to(device)
 
-    print(model(v, v))
+    print(model.greedy_decode(v).view(-1))
 
 
 if __name__ == '__main__':

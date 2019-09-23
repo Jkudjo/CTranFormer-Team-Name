@@ -42,12 +42,14 @@ class TeamNameLoader:
                  dataset: data.Dataset,
                  mask: bool,
                  batch_size: int,
-                 drop_last: bool = False):
+                 drop_last: bool = False,
+                 device = 'cpu'):
         super().__init__()
         self._dataset = dataset
         self.mask = mask
         self.batch_size = batch_size
         self.drop_last = drop_last
+        self.device = device
 
         # * TODO: A better than random sampler that take into account sample length
         self._sampler = data.BatchSampler(data.RandomSampler(self._dataset,
@@ -72,17 +74,24 @@ class TeamNameLoader:
                     rnd_mask_idx = torch.randint(1, len(tensor) - 1, (1,))
                     next_input[rnd_mask_idx, i] = msk_item
 
-            yield next_input, next_target
+            yield next_input.to(self.device), next_target.to(self.device)[1:, ...]
+            
+    def __len__(self):
+        return self._dataset.__len__()
 
 
 def get_dataset(path: pathlib.Path,
                 mask: bool,
                 batch_size: int,
                 shuffle: bool = True,
-                drop_last: bool = False):
+                drop_last: bool = False,
+                device = 'cpu'):
     dataset = TeamNameDataset(path)
-    return TeamNameLoader(dataset, mask=mask,
-                          batch_size=batch_size, drop_last=drop_last)
+    return TeamNameLoader(dataset, 
+                          mask=mask,
+                          batch_size=batch_size, 
+                          drop_last=drop_last,
+                          device=device)
 
 
 def main():

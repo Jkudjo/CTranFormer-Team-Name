@@ -37,7 +37,9 @@ def set_random_seed(seed=42):
 def get_team_names(path: pathlib.Path) -> Iterable[str]:
     with path.open(encoding='utf-8') as file_io:
         for line in file_io.readlines():
-            yield line.strip()
+            l = line.strip()
+            if l:
+                yield l
 
 
 def split_dataset(path: pathlib.Path, proportions: Tuple, split_names=None):
@@ -73,7 +75,7 @@ def vectorize(team_name: str, vocabulary_d: Dict[str, int]) -> List[int]:
     ] + [vocabulary_d[END]])
 
 
-def get_padding_mask(x: torch.Tensor) -> torch.ByteTensor:
+def get_padding_mask(x: torch.Tensor, device='cpu') -> torch.ByteTensor:
     """get_padding_mask [summary]
 
     Args:
@@ -83,8 +85,8 @@ def get_padding_mask(x: torch.Tensor) -> torch.ByteTensor:
         torch.ByteTensor: (N, S/T)
     """
     return torch.where(x != alphabet_d[PAD],
-                       torch.Tensor([False]),
-                       torch.Tensor([True])).transpose(1, 0).bool()
+                       torch.Tensor([False]).to(device),
+                       torch.Tensor([True]).to(device)).transpose(1, 0).bool()
 
 
 def main():
