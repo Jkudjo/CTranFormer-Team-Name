@@ -13,11 +13,9 @@ import itertools
 from typing import Callable
 
 
-def train_epoch(model: nn.Module,
-                dataset_loader: src.inputs.TeamNameLoader,
+def train_epoch(model: nn.Module, dataset_loader: src.inputs.TeamNameLoader,
                 scheduler: torch.optim.lr_scheduler._LRScheduler,
-                criterion: Callable,
-                epoch: int):
+                criterion: Callable, epoch: int):
     optimizer = scheduler.optimizer
     log_interval = 5
     total_loss = 0.
@@ -33,11 +31,11 @@ def train_epoch(model: nn.Module,
         outputs = model(data, targets)
 
         output_flat = outputs.reshape(-1, model.vocabulary_size).double()
-        truth_flat = data.view(-1).long()
+        truth_flat = data.view(-1).long()  # ! TODO replace truth
         loss = criterion(output_flat, truth_flat)
 
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
 
         total_loss += loss.item()
@@ -47,13 +45,16 @@ def train_epoch(model: nn.Module,
             elapsed = time.time() - start_time
 
             current_lr = next(
-                param_group['lr'] for param_group in scheduler.optimizer.param_groups)
-            print(f'| epoch {epoch:3d} '
-                  f'| batch {i:5d}/{len(dataset_loader)//dataset_loader.batch_size:5d} '
-                  f'| lr {current_lr:02.5f} '
-                  f'| ms/batch {elapsed * 1000 / log_interval:5.2f} '
-                  f'| loss {cur_loss:5.2f} '
-                  f'| ppl {math.exp(cur_loss):8.2f} |', end='\r')
+                param_group['lr']
+                for param_group in scheduler.optimizer.param_groups)
+            print(
+                f'| epoch {epoch:3d} '
+                f'| batch {i:5d}/{len(dataset_loader)//dataset_loader.batch_size:5d} '
+                f'| lr {current_lr:02.5f} '
+                f'| ms/batch {elapsed * 1000 / log_interval:6.2f} '
+                f'| loss {cur_loss:5.2f} '
+                f'| ppl {math.exp(cur_loss):8.2f} |',
+                end='\r')
             total_loss = 0.
             start_time = time.time()
 
@@ -70,7 +71,7 @@ def evaluate(eval_model: torch.nn.Module,
             outputs = eval_model(data, targets)
             output_flat = outputs.reshape(-1,
                                           eval_model.vocabulary_size).double()
-            truth_flat = data.view(-1).long()
+            truth_flat = data.view(-1).long()  # ! TODO replace truth
 
             loss = criterion(output_flat, truth_flat).detach().item()
 
@@ -78,12 +79,13 @@ def evaluate(eval_model: torch.nn.Module,
     return total_loss / len(dataset_loader_valid)
 
 
-def train(model: torch.nn.Module,
-          dataset_loader_train: src.inputs.TeamNameLoader,
-          dataset_loader_valid: src.inputs.TeamNameLoader,
-          learning_rate: float,
-          epochs: int,
-          ):
+def train(
+        model: torch.nn.Module,
+        dataset_loader_train: src.inputs.TeamNameLoader,
+        dataset_loader_valid: src.inputs.TeamNameLoader,
+        learning_rate: float,
+        epochs: int,
+):
 
     criterion = nn.NLLLoss(ignore_index=src.utils.alphabet_d[src.utils.PAD])
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -96,15 +98,11 @@ def train(model: torch.nn.Module,
 
     for epoch in range(1, epochs + 1):
         epoch_start_time = time.time()
-        train_epoch(model,
-                    dataset_loader_train,
-                    scheduler,
-                    criterion,
-                    epoch)
+        train_epoch(model, dataset_loader_train, scheduler, criterion, epoch)
         val_loss = evaluate(model, dataset_loader_valid, criterion)
         print('-' * 90)
         print(f'| end of epoch {epoch:3d} '
-              f'| time: {(time.time() - epoch_start_time):5.2f}s '
+              f'| time: {(time.time() - epoch_start_time):6.2f}s '
               f'| valid loss {val_loss:5.2f} '
               f'| valid ppl {math.exp(val_loss):8.2f} |')
         print('-' * 90)
@@ -120,23 +118,25 @@ def main():
     device = torch.device(
         'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
+    device = 'cpu'
+
     dataset_path = pathlib.Path(R"ctftime_team_names.txt")
     vocabulary_d = src.utils.alphabet_d
 
     dataset_path_train, dataset_path_valid, dataset_path_test = src.utils.split_dataset(
-        dataset_path, (0.2, 0.1, 0.7))
+        dataset_path, (0.7, 0.1, 0.2))
 
     # --- TRAINING PARAMS ---
-    learning_rate = 1e-2
+    learning_rate = 3e-4
     batch_size = 64
-    epochs = 1
+    epochs = 10
 
     # --- MODEL PARAMS ---
-    model_size = 16
-    head_n = 4
-    encoder_layers_n = 1
+    model_size = 64
+    head_n = 8
+    encoder_layers_n = 4
     decoder_layers_n = 1
-    feedforward_size = 32
+    feedforward_size = 128
 
     dataset_loader_train = src.inputs.get_dataset(dataset_path_train,
                                                   mask=False,
@@ -156,21 +156,32 @@ def main():
                                                  drop_last=True,
                                                  device=device)
 
-    model = src.char_prediction.Model(vocabulary_size=len(vocabulary_d),
+    # * DEMO DATA *
+    dataset_train = src.inputs.DemoDataset(vocab_size=20, size=1000)
+    dataset_loader_train = src.inputs.DemoLoader(dataset_train, 10, device)
+
+    dataset_valid = src.inputs.DemoDataset(20, 100)
+    dataset_loader_valid = src.inputs.DemoLoader(dataset_valid, 10, device)
+
+    dataset_test = src.inputs.DemoDataset(20, 100)
+    dataset_loader_test = src.inputs.DemoLoader(dataset_test, 1, device)
+    # * END DEMO DATA *
+
+    model = src.char_prediction.Model(vocabulary_size=20,
                                       model_size=model_size,
                                       head_n=head_n,
                                       encoder_layers_n=encoder_layers_n,
                                       decoder_layers_n=decoder_layers_n,
                                       feedforward_size=feedforward_size,
+                                      dropout_transformer=0,
+                                      dropout_embedding=0,
                                       device=device)
 
-    train(model,
-          dataset_loader_train,
-          dataset_loader_valid,
-          learning_rate,
+    train(model, dataset_loader_train, dataset_loader_valid, learning_rate,
           epochs)
 
     n = 10
+    model.eval()
     with torch.no_grad():
         for i, batch in itertools.takewhile(lambda x: x[0] < n,
                                             enumerate(dataset_loader_test)):
@@ -182,12 +193,13 @@ def main():
 
             decoded = model(data, tgt)
 
-            data_name = ''.join(
-                src.utils.alphabet_l[i] for i in data.reshape(-1))
+            data_name = ''.join(src.utils.alphabet_l[i]
+                                for i in data.reshape(-1))
             team_name = ''.join(
-                src.utils.alphabet_l[i] for i in torch.argmax(decoded, dim=-1).reshape(-1))
+                src.utils.alphabet_l[i]
+                for i in torch.argmax(decoded, dim=-1).reshape(-1))
 
-            print(data_name, team_name)
+            print(data_name, team_name, decoded)
         pass
 
 

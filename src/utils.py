@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 File:   utils.py
 Author: Thibault Douzon
@@ -69,8 +68,10 @@ def split_dataset(path: pathlib.Path, proportions: Tuple, split_names=None):
 
 
 def vectorize(team_name: str, vocabulary_d: Dict[str, int]) -> List[int]:
-    return [vocabulary_d[c] if c in vocabulary_d else vocabulary_d[UNK]
-            for c in team_name]
+    return [
+        vocabulary_d[c] if c in vocabulary_d else vocabulary_d[UNK]
+        for c in team_name
+    ]
 
 
 def get_padding_mask(x: torch.Tensor, device='cpu') -> torch.ByteTensor:

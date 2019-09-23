@@ -19,8 +19,15 @@ import src.utils
 
 
 class Model(nn.Module):
-    def __init__(self, vocabulary_size, model_size=512, head_n=8, encoder_layers_n=6,
-                 decoder_layers_n=6, feedforward_size=2048, dropout_transformer=0.1,
+    def __init__(self,
+                 vocabulary_size,
+                 model_size=512,
+                 head_n=8,
+                 encoder_layers_n=6,
+                 decoder_layers_n=6,
+                 feedforward_size=2048,
+                 dropout_transformer=0.1,
+                 dropout_embedding=0.2,
                  device='cpu'):
         super().__init__()
         self.vocabulary_size = vocabulary_size
@@ -30,18 +37,22 @@ class Model(nn.Module):
         self.decoder_layers_n = decoder_layers_n
         self.feedforward_size = feedforward_size
         self.dropout_transformer = dropout_transformer
+        self.dropout_embedding = dropout_embedding
         self.device = device
 
-        self.embedding = Embedding(
-            self.vocabulary_size, self.model_size, device=self.device)
-        self.transformer = nn.modules.transformer.Transformer(d_model=self.model_size,
-                                                              nhead=self.head_n,
-                                                              num_encoder_layers=self.encoder_layers_n,
-                                                              num_decoder_layers=self.decoder_layers_n,
-                                                              dim_feedforward=self.feedforward_size,
-                                                              dropout=self.dropout_transformer).to(self.device)
-        self.linear = nn.Linear(
-            self.model_size, self.vocabulary_size).to(self.device)
+        self.embedding = Embedding(self.vocabulary_size,
+                                   self.model_size,
+                                   dropout_rate=self.dropout_embedding,
+                                   device=self.device)
+        self.transformer = nn.modules.transformer.Transformer(
+            d_model=self.model_size,
+            nhead=self.head_n,
+            num_encoder_layers=self.encoder_layers_n,
+            num_decoder_layers=self.decoder_layers_n,
+            dim_feedforward=self.feedforward_size,
+            dropout=self.dropout_transformer).to(self.device)
+        self.linear = nn.Linear(self.model_size,
+                                self.vocabulary_size).to(self.device)
 
     def encode(self, x, x_mask=None):
         xx = self.embedding(x)
@@ -68,9 +79,11 @@ class Model(nn.Module):
 
         zz = self.linear(zz)
         zz = F.softmax(zz, dim=-1)
-        return zz.transpose(1, 0)
+        return zz
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor,
+    def forward(self,
+                x: torch.Tensor,
+                y: torch.Tensor,
                 x_mask: torch.Tensor = None,
                 y_mask: torch.Tensor = None):
 
@@ -84,7 +97,7 @@ class Model(nn.Module):
 
         zz = self.linear(mem)
         zz = F.log_softmax(zz, dim=-1)
-        return zz.transpose(1, 0)
+        return zz
 
         # return self.decode(y,
         #                    mem,
@@ -94,14 +107,16 @@ class Model(nn.Module):
 
     def greedy_decode(self, x):
         max_len = 20
-        ys = torch.ones(1, 1).fill_(
-            src.utils.alphabet_d[src.utils.BEG]).to(self.device).long()
-        for i in range(max_len-1):
+        ys = torch.ones(1, 1).fill_(src.utils.alphabet_d[src.utils.BEG]).to(
+            self.device).long()
+        for i in range(max_len - 1):
             out = self(x, ys)
             next_word = torch.argmax(out, dim=-1)
             next_word = next_word[0][-1].detach().item()
-            ys = torch.cat([ys,
-                            torch.ones(1, 1).fill_(next_word).to(self.device).long()], dim=0)
+            ys = torch.cat(
+                [ys,
+                 torch.ones(1, 1).fill_(next_word).to(self.device).long()],
+                dim=0)
         return ys
 
     def _padding_mask(self, x: torch.Tensor) -> torch.ByteTensor:
@@ -120,16 +135,19 @@ class Embedding(nn.Module):
     def __init__(self,
                  vocabulary_size: int,
                  model_size: int,
+                 dropout_rate: float,
                  max_sequence_size: int = 1000,
                  device='cpu'):
         super().__init__()
         self._vocabulary_size = vocabulary_size
         self._model_size = model_size
         self._max_sequence_size = max_sequence_size
+        self.dropout_rate = dropout_rate
         self.device = device
 
-        self.embedding = nn.Embedding(
-            vocabulary_size, model_size).to(self.device)
+        self.embedding = nn.Embedding(vocabulary_size,
+                                      model_size).to(self.device)
+        self.dropout = nn.Dropout(self.dropout_rate)
         self._register_positional_encoding()
 
     def init_weights(self):
@@ -148,9 +166,9 @@ class Embedding(nn.Module):
 
         position = (torch.arange(
             0, self._max_sequence_size, dtype=torch.float64).view(-1, 1) *
-            torch.ones(self._max_sequence_size,
-                       self._model_size // 2,
-                       dtype=torch.float64))
+                    torch.ones(self._max_sequence_size,
+                               self._model_size // 2,
+                               dtype=torch.float64))
 
         harmonic = 10000**(
             torch.arange(0, self._model_size, 2, dtype=torch.float64) /
@@ -173,9 +191,9 @@ class Embedding(nn.Module):
             torch.Tensor -- (S, N, D) embedded input
         """
         xx = self.embedding(x[:self._max_sequence_size, ...])
-        xx += self.positional_encoding[:min(xx.size(0),
-                                            self._max_sequence_size), ...]
-
+        xx += self.positional_encoding[:min(xx.size(0), self._max_sequence_size
+                                            ), ...]
+        xx = self.dropout(xx)
         return xx
 
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 File:   inputs.py
 Author: Thibault Douzon
@@ -18,8 +17,65 @@ import src.utils
 from typing import Dict
 
 
+class DemoDataset:
+    def __init__(self, vocab_size, size):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.size = size
+        self.len_seq = 10
+        self.data = np.random.randint(6, self.vocab_size - 1,
+                                      size=(size, self.len_seq),
+                                      dtype=np.int64)
+
+    def __getitem__(self, key):
+        if 0 <= key < self.size:
+            return self.data[key, :]
+        else:
+            raise IndexError
+
+    def __len__(self):
+        return len(self.data)
+
+
+class DemoLoader:
+    def __init__(self, dataset, batch_size, device='cpu'):
+        super().__init__()
+        self._dataset = dataset
+        self.batch_size = batch_size
+        self.device = device
+
+        self._sampler = data.BatchSampler(data.RandomSampler(
+            self._dataset,
+            replacement=False),
+            self.batch_size, False)
+
+    def __iter__(self):
+        for next_batch in self._sampler:
+            next_input = torch.zeros(self._dataset.len_seq,
+                                     self.batch_size).to(self.device,
+                                                         dtype=torch.int64)
+            next_target = torch.zeros(self._dataset.len_seq+1,
+                                      self.batch_size).to(self.device,
+                                                          dtype=torch.int64)
+            next_output = torch.ones(self._dataset.len_seq+1,
+                                     self.batch_size).to(self.device,
+                                                         dtype=torch.int64)
+
+            for i, item_idx in enumerate(next_batch):
+                tensor = torch.from_numpy(self._dataset[item_idx])
+                next_input[:, i] = tensor
+                next_target[1:, i] = next_input[:, i] + 1
+                next_output[:-1, i] = next_input[:, i] + 1
+
+            yield next_input, next_target, next_output
+
+    def __len__(self):
+        return self._dataset.__len__()
+
+
 class TeamNameDataset(data.Dataset):
-    def __init__(self, path: pathlib.Path,
+    def __init__(self,
+                 path: pathlib.Path,
                  vocabulary: Dict[str, int] = src.utils.alphabet_d):
         super().__init__()
         self.path = path
@@ -31,8 +87,7 @@ class TeamNameDataset(data.Dataset):
 
     def __getitem__(self, key: int):
         if 0 <= key < len(self._data):
-            return src.utils.vectorize(self._data[key],
-                                       self.vocabulary)
+            return src.utils.vectorize(self._data[key], self.vocabulary)
         else:
             raise IndexError
 
@@ -43,7 +98,7 @@ class TeamNameLoader:
                  mask: bool,
                  batch_size: int,
                  drop_last: bool = False,
-                 device = 'cpu'):
+                 device='cpu'):
         super().__init__()
         self._dataset = dataset
         self.mask = mask
@@ -52,10 +107,10 @@ class TeamNameLoader:
         self.device = device
 
         # * TODO: A better than random sampler that take into account sample length
-        self._sampler = data.BatchSampler(data.RandomSampler(self._dataset,
-                                                             replacement=False),
-                                          batch_size=self.batch_size,
-                                          drop_last=self.drop_last)
+        self._sampler = data.BatchSampler(data.RandomSampler(
+            self._dataset, replacement=False),
+            batch_size=self.batch_size,
+            drop_last=self.drop_last)
 
     def __iter__(self):
         # * IDEA add temperature level to control no of masks
@@ -65,14 +120,19 @@ class TeamNameLoader:
         msk_item = self._dataset.vocabulary[src.utils.MSK]
         for next_batch in self._sampler:
             max_seq_len = max(len(self._dataset[i]) for i in next_batch)
-            next_input = torch.ones(
-                max_seq_len, self.batch_size, dtype=torch.int64).fill_(pad_item)
-            
-            next_target = torch.ones(max_seq_len + 1, self.batch_size, dtype=torch.int64).fill_(pad_item)
+            next_input = torch.ones(max_seq_len,
+                                    self.batch_size,
+                                    dtype=torch.int64).fill_(pad_item)
+
+            next_target = torch.ones(max_seq_len + 1,
+                                     self.batch_size,
+                                     dtype=torch.int64).fill_(pad_item)
             next_target[0, :] = beg_item
 
-            next_output = torch.ones(max_seq_len + 1, self.batch_size, dtype=torch.int64).fill_(pad_item)
-            
+            next_output = torch.ones(max_seq_len + 1,
+                                     self.batch_size,
+                                     dtype=torch.int64).fill_(pad_item)
+
             # ? If too much memory is used, merge output and target and move
             # ? further processing to the training loop
             for i, tensor_idx in enumerate(next_batch):
@@ -80,17 +140,16 @@ class TeamNameLoader:
                 next_input[:len(tensor), i] = tensor
 
                 next_target[1:len(tensor) + 1, i] = tensor
-                
+
                 next_output[:len(tensor), i] = tensor
                 next_output[len(tensor), i] = end_item
                 if self.mask:
-                    rnd_mask_idx = torch.randint(len(tensor), (1,))
+                    rnd_mask_idx = torch.randint(len(tensor), (1, ))
                     next_input[rnd_mask_idx, i] = msk_item
 
-            yield (next_input.to(self.device),
-                   next_target.to(self.device),
+            yield (next_input.to(self.device), next_target.to(self.device),
                    next_output.to(self.device))
-            
+
     def __len__(self):
         return self._dataset.__len__()
 
@@ -110,9 +169,12 @@ def get_dataset(path: pathlib.Path,
 
 
 def main():
-    p = pathlib.Path("ctftime_team_names.txt")
-    dataset = TeamNameDataset(p)
-    dataloader = TeamNameLoader(dataset, True, 2)
+    # p = pathlib.Path("ctftime_team_names.txt")
+    # dataset = TeamNameDataset(p)
+    # dataloader = TeamNameLoader(dataset, True, 2)
+
+    dataset = DemoDataset(10, 100)
+    dataloader = DemoLoader(dataset, 3, 'cpu')
     for i, d in enumerate(dataloader):
         if i > 0:
             break
