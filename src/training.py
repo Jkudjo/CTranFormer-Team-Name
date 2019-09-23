@@ -118,7 +118,7 @@ def main():
     device = torch.device(
         'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
-    device = 'cpu'
+    # device = 'cpu'
 
     dataset_path = pathlib.Path(R"ctftime_team_names.txt")
     vocabulary_d = src.utils.alphabet_d
@@ -129,7 +129,7 @@ def main():
     # --- TRAINING PARAMS ---
     learning_rate = 3e-4
     batch_size = 64
-    epochs = 10
+    epochs = 1
 
     # --- MODEL PARAMS ---
     model_size = 64
@@ -157,17 +157,17 @@ def main():
                                                  device=device)
 
     # * DEMO DATA *
-    dataset_train = src.inputs.DemoDataset(vocab_size=20, size=1000)
-    dataset_loader_train = src.inputs.DemoLoader(dataset_train, 10, device)
+    # dataset_train = src.inputs.DemoDataset(vocab_size=20, size=1000)
+    # dataset_loader_train = src.inputs.DemoLoader(dataset_train, 10, device)
 
-    dataset_valid = src.inputs.DemoDataset(20, 100)
-    dataset_loader_valid = src.inputs.DemoLoader(dataset_valid, 10, device)
+    # dataset_valid = src.inputs.DemoDataset(20, 100)
+    # dataset_loader_valid = src.inputs.DemoLoader(dataset_valid, 10, device)
 
-    dataset_test = src.inputs.DemoDataset(20, 100)
-    dataset_loader_test = src.inputs.DemoLoader(dataset_test, 1, device)
+    # dataset_test = src.inputs.DemoDataset(20, 100)
+    # dataset_loader_test = src.inputs.DemoLoader(dataset_test, 1, device)
     # * END DEMO DATA *
 
-    model = src.char_prediction.Model(vocabulary_size=20,
+    model = src.char_prediction.Model(vocabulary_size=len(vocabulary_d),
                                       model_size=model_size,
                                       head_n=head_n,
                                       encoder_layers_n=encoder_layers_n,
@@ -199,7 +199,7 @@ def main():
                 src.utils.alphabet_l[i]
                 for i in torch.argmax(decoded, dim=-1).reshape(-1))
 
-            print(data_name, team_name, decoded)
+            print(data_name, team_name)
         pass
 
 

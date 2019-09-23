@@ -78,7 +78,7 @@ class Model(nn.Module):
                                       memory_key_padding_mask=mem_padding_mask)
 
         zz = self.linear(zz)
-        zz = F.softmax(zz, dim=-1)
+        zz = F.log_softmax(zz, dim=-1)
         return zz
 
     def forward(self,
