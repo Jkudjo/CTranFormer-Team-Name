@@ -15,6 +15,7 @@ import numpy as np
 import src.utils
 
 from typing import Dict
+import math
 
 
 class DemoDataset:
@@ -97,6 +98,7 @@ class TeamNameLoader:
                  dataset: data.Dataset,
                  mask: bool,
                  batch_size: int,
+                 initial_temperature: float,
                  drop_last: bool = False,
                  device='cpu'):
         super().__init__()
@@ -106,11 +108,42 @@ class TeamNameLoader:
         self.drop_last = drop_last
         self.device = device
 
+        self._temperature = initial_temperature
+
         # * TODO: A better than random sampler that take into account sample length
         self._sampler = data.BatchSampler(data.RandomSampler(
             self._dataset, replacement=False),
             batch_size=self.batch_size,
             drop_last=self.drop_last)
+
+    @property
+    def temperature(self):
+        return self._temperature
+
+    @temperature.setter
+    def temperature(self, temperature: float):
+        if temperature < 0:
+            raise ValueError('Temperature must be positive')
+        else:
+            self._temperature = temperature
+
+    def mask_index_sample(self, tensor_len):
+        min_prob, max_prob = 0.1, 0.6
+
+        if self.temperature == 0:
+            return torch.Tensor([]).to(self.device).long()
+
+        # sigma(log_2(temperature)) rescaled to [min_prob ; max_prob]
+        p_temp = 1/(1 + math.exp(-math.log(self.temperature + 1e-6)))
+        p_temp = min_prob + (max_prob - min_prob) * p_temp
+
+        binomial_temp = torch.distributions.Binomial(tensor_len, p_temp)
+        n_draw = binomial_temp.sample().long().item()
+
+        if n_draw == 0: 
+            return torch.Tensor([]).to(self.device).long()
+
+        return torch.multinomial(torch.ones(tensor_len), n_draw).to(self.device).long()
 
     def __iter__(self):
         # * IDEA add temperature level to control no of masks
@@ -144,7 +177,7 @@ class TeamNameLoader:
                 next_output[:len(tensor), i] = tensor
                 next_output[len(tensor), i] = end_item
                 if self.mask:
-                    rnd_mask_idx = torch.randint(len(tensor), (1, ))
+                    rnd_mask_idx = self.mask_index_sample(len(tensor))
                     next_input[rnd_mask_idx, i] = msk_item
 
             yield (next_input.to(self.device), next_target.to(self.device),
@@ -169,12 +202,12 @@ def get_dataset(path: pathlib.Path,
 
 
 def main():
-    # p = pathlib.Path("ctftime_team_names.txt")
-    # dataset = TeamNameDataset(p)
-    # dataloader = TeamNameLoader(dataset, True, 2)
+    p = pathlib.Path("ctftime_team_names.txt")
+    dataset = TeamNameDataset(p)
+    dataloader = TeamNameLoader(dataset, True, 2, 0.9, device='cuda:0')
 
-    dataset = DemoDataset(10, 100)
-    dataloader = DemoLoader(dataset, 3, 'cpu')
+    # dataset = DemoDataset(10, 100)
+    # dataloader = DemoLoader(dataset, 3, 'cpu')
     for i, d in enumerate(dataloader):
         if i > 0:
             break
