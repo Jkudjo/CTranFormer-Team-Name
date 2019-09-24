@@ -31,7 +31,7 @@ def train_epoch(model: nn.Module, dataset_loader: src.inputs.TeamNameLoader,
         outputs = model(data, targets)
 
         output_flat = outputs.reshape(-1, model.vocabulary_size).double()
-        truth_flat = data.view(-1).long()  # ! TODO replace truth
+        truth_flat = targets[1:, :].reshape(-1).long()  # ! TODO replace truth
         loss = criterion(output_flat, truth_flat)
 
         loss.backward()
@@ -71,7 +71,7 @@ def evaluate(eval_model: torch.nn.Module,
             outputs = eval_model(data, targets)
             output_flat = outputs.reshape(-1,
                                           eval_model.vocabulary_size).double()
-            truth_flat = data.view(-1).long()  # ! TODO replace truth
+            truth_flat = targets[1:, :].reshape(-1).long()  # ! TODO replace truth
 
             loss = criterion(output_flat, truth_flat).detach().item()
 
@@ -124,34 +124,34 @@ def main():
     vocabulary_d = src.utils.alphabet_d
 
     dataset_path_train, dataset_path_valid, dataset_path_test = src.utils.split_dataset(
-        dataset_path, (0.7, 0.1, 0.2))
+        dataset_path, (0.7, 0.2, 0.1))
 
     # --- TRAINING PARAMS ---
     learning_rate = 3e-4
     batch_size = 64
-    epochs = 1
+    epochs = 5
 
     # --- MODEL PARAMS ---
-    model_size = 64
+    model_size = 128
     head_n = 8
     encoder_layers_n = 4
     decoder_layers_n = 1
-    feedforward_size = 128
+    feedforward_size = 526
 
     dataset_loader_train = src.inputs.get_dataset(dataset_path_train,
-                                                  mask=False,
+                                                  mask=True,
                                                   batch_size=batch_size,
                                                   drop_last=True,
                                                   device=device)
 
     dataset_loader_valid = src.inputs.get_dataset(dataset_path_valid,
-                                                  mask=False,
+                                                  mask=True,
                                                   batch_size=batch_size,
                                                   drop_last=True,
                                                   device=device)
 
     dataset_loader_test = src.inputs.get_dataset(dataset_path_test,
-                                                 mask=False,
+                                                 mask=True,
                                                  batch_size=1,
                                                  drop_last=True,
                                                  device=device)
@@ -173,14 +173,14 @@ def main():
                                       encoder_layers_n=encoder_layers_n,
                                       decoder_layers_n=decoder_layers_n,
                                       feedforward_size=feedforward_size,
-                                      dropout_transformer=0,
-                                      dropout_embedding=0,
+                                      dropout_transformer=0.2,
+                                      dropout_embedding=0.1,
                                       device=device)
 
     train(model, dataset_loader_train, dataset_loader_valid, learning_rate,
           epochs)
 
-    n = 10
+    n = 100
     model.eval()
     with torch.no_grad():
         for i, batch in itertools.takewhile(lambda x: x[0] < n,
@@ -194,7 +194,7 @@ def main():
             decoded = model(data, tgt)
 
             data_name = ''.join(src.utils.alphabet_l[i]
-                                for i in data.reshape(-1))
+                                for i in truth[:-1, :].reshape(-1))
             team_name = ''.join(
                 src.utils.alphabet_l[i]
                 for i in torch.argmax(decoded, dim=-1).reshape(-1))
