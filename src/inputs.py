@@ -191,12 +191,14 @@ def get_dataset(path: pathlib.Path,
                 mask: bool,
                 batch_size: int,
                 shuffle: bool = True,
+                initial_temperature: float = 0.,
                 drop_last: bool = False,
                 device='cpu'):
     dataset = TeamNameDataset(path)
     return TeamNameLoader(dataset,
                           mask=mask,
                           batch_size=batch_size,
+                          initial_temperature=initial_temperature,
                           drop_last=drop_last,
                           device=device)
 

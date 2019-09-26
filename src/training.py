@@ -10,12 +10,14 @@ import time
 import pathlib
 import math
 import itertools
-from typing import Callable
+from typing import Callable, List
 
 
-def train_epoch(model: nn.Module, dataset_loader: src.inputs.TeamNameLoader,
+def train_epoch(model: nn.Module, 
+                dataset_loader: src.inputs.TeamNameLoader,
                 scheduler: torch.optim.lr_scheduler._LRScheduler,
-                criterion: Callable, epoch: int):
+                criterion: Callable, 
+                epoch: int):
     optimizer = scheduler.optimizer
     log_interval = 5
     total_loss = 0.
@@ -77,6 +79,12 @@ def evaluate(eval_model: torch.nn.Module,
 
             total_loss += data.size(1) * loss
     return total_loss / len(dataset_loader_valid)
+
+
+def raise_dataset_temperature(dataset_l: List[src.inputs.TeamNameLoader],
+                              epoch: int):
+    
+    pass
 
 
 def train(
