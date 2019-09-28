@@ -13,10 +13,10 @@ import itertools
 from typing import Callable, List
 
 
-def train_epoch(model: nn.Module, 
+def train_epoch(model: nn.Module,
                 dataset_loader: src.inputs.TeamNameLoader,
                 scheduler: torch.optim.lr_scheduler._LRScheduler,
-                criterion: Callable, 
+                criterion: Callable,
                 epoch: int):
     optimizer = scheduler.optimizer
     log_interval = 5
@@ -33,7 +33,7 @@ def train_epoch(model: nn.Module,
         outputs = model(data, targets)
 
         output_flat = outputs.reshape(-1, model.vocabulary_size).double()
-        truth_flat = targets[1:, :].reshape(-1).long()  # ! TODO replace truth
+        truth_flat = truth.reshape(-1).long()  # ! TODO replace truth
         loss = criterion(output_flat, truth_flat)
 
         loss.backward()
@@ -73,7 +73,8 @@ def evaluate(eval_model: torch.nn.Module,
             outputs = eval_model(data, targets)
             output_flat = outputs.reshape(-1,
                                           eval_model.vocabulary_size).double()
-            truth_flat = targets[1:, :].reshape(-1).long()  # ! TODO replace truth
+            # ! TODO replace truth
+            truth_flat = truth.reshape(-1).long()
 
             loss = criterion(output_flat, truth_flat).detach().item()
 
@@ -83,8 +84,9 @@ def evaluate(eval_model: torch.nn.Module,
 
 def raise_dataset_temperature(dataset_l: List[src.inputs.TeamNameLoader],
                               epoch: int):
-    
-    pass
+
+    for dataset in dataset_l:
+        dataset.temperature = epoch * 0.2
 
 
 def train(
@@ -92,15 +94,14 @@ def train(
         dataset_loader_train: src.inputs.TeamNameLoader,
         dataset_loader_valid: src.inputs.TeamNameLoader,
         learning_rate: float,
-        epochs: int,
-):
+        epochs: int):
 
     criterion = nn.NLLLoss(ignore_index=src.utils.alphabet_d[src.utils.PAD])
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
                                                            mode='min',
                                                            factor=0.3,
-                                                           patience=2)
+                                                           patience=3)
     best_val_loss = float("inf")
     best_model = None
 
@@ -120,6 +121,7 @@ def train(
             best_model = model
 
         scheduler.step(val_loss)
+        raise_dataset_temperature([dataset_loader_train, dataset_loader_valid], epoch)
 
 
 def main():
@@ -135,7 +137,7 @@ def main():
         dataset_path, (0.7, 0.2, 0.1))
 
     # --- TRAINING PARAMS ---
-    learning_rate = 3e-4
+    learning_rate = 5e-4
     batch_size = 64
     epochs = 5
 
@@ -143,7 +145,7 @@ def main():
     model_size = 128
     head_n = 8
     encoder_layers_n = 4
-    decoder_layers_n = 1
+    decoder_layers_n = 4
     feedforward_size = 526
 
     dataset_loader_train = src.inputs.get_dataset(dataset_path_train,
@@ -161,6 +163,7 @@ def main():
     dataset_loader_test = src.inputs.get_dataset(dataset_path_test,
                                                  mask=True,
                                                  batch_size=1,
+                                                 initial_temperature=0.1,
                                                  drop_last=True,
                                                  device=device)
 

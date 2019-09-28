@@ -95,15 +95,15 @@ class Model(nn.Module):
 
         # *-- DECODE --
 
-        zz = self.linear(mem)
-        zz = F.log_softmax(zz, dim=-1)
-        return zz
+        # zz = self.linear(mem)
+        # zz = F.log_softmax(zz, dim=-1)
+        # return zz
 
-        # return self.decode(y,
-        #                    mem,
-        #                    y_mask,
-        #                    mem_mask,
-        #                    mem_padding_mask)
+        return self.decode(y,
+                           mem,
+                           y_mask,
+                           mem_mask,
+                           mem_padding_mask)
 
     def greedy_decode(self, x):
         max_len = 20

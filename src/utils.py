@@ -74,14 +74,14 @@ def vectorize(team_name: str, vocabulary_d: Dict[str, int]) -> List[int]:
     ]
 
 
-def get_padding_mask(x: torch.Tensor, device='cpu') -> torch.ByteTensor:
+def get_padding_mask(x: torch.Tensor, device='cpu') -> torch.Tensor:
     """get_padding_mask [summary]
 
     Args:
         x (torch.Tensor): (S/T, N) tensor
 
     Returns:
-        torch.ByteTensor: (N, S/T)
+        torch.Tensor: (N, S/T)
     """
     return torch.where(x != alphabet_d[PAD],
                        torch.Tensor([False]).to(device),
