@@ -109,13 +109,15 @@ class Model(nn.Module):
         max_len = 20
         ys = torch.ones(1, 1).fill_(src.utils.alphabet_d[src.utils.BEG]).to(
             self.device).long()
+        mem = self.encode(x)
+        mem_padding_mask = self._padding_mask(x)
         for i in range(max_len - 1):
-            out = self(x, ys)
-            next_word = torch.argmax(out, dim=-1)
-            next_word = next_word[0][-1].detach().item()
+            out = self.decode(ys, mem, None, None, mem_padding_mask)
+            next_char = torch.argmax(out, dim=-1)
+            next_char = next_char[-1][0].detach().item()
             ys = torch.cat(
                 [ys,
-                 torch.ones(1, 1).fill_(next_word).to(self.device).long()],
+                 torch.ones(1, 1).fill_(next_char).to(self.device).long()],
                 dim=0)
         return ys
 
@@ -166,9 +168,9 @@ class Embedding(nn.Module):
 
         position = (torch.arange(
             0, self._max_sequence_size, dtype=torch.float64).view(-1, 1) *
-                    torch.ones(self._max_sequence_size,
-                               self._model_size // 2,
-                               dtype=torch.float64))
+            torch.ones(self._max_sequence_size,
+                       self._model_size // 2,
+                       dtype=torch.float64))
 
         harmonic = 10000**(
             torch.arange(0, self._model_size, 2, dtype=torch.float64) /
@@ -203,7 +205,7 @@ def main():
     # device = torch.device('cuda:0')
     device = torch.device('cpu')
 
-    model = Model(10, 16, 4, 4, 4, 128, 0.1, device)
+    model = Model(10, 16, 4, 4, 4, 128, 0.1, device=device)
     print(model.model_size)
     v = torch.arange(0, 10).view(-1, 1).long().to(device)
 

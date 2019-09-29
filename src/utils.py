@@ -46,7 +46,7 @@ def split_dataset(path: pathlib.Path, proportions: Tuple, split_names=None):
     if split_names is None and len(proportions) <= 3:
         split_names = ['train', 'valid', 'test'][:len(proportions)]
 
-    split_dataset_l = [[] for _ in proportions]
+    split_dataset_l: List[List[str]] = [[] for _ in proportions]
     proportion_acc = np.cumsum(proportions)
 
     for team_name in get_team_names(path):

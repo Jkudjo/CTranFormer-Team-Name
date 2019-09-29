@@ -33,7 +33,7 @@ def train_epoch(model: nn.Module,
         outputs = model(data, targets)
 
         output_flat = outputs.reshape(-1, model.vocabulary_size).double()
-        truth_flat = truth.reshape(-1).long()  # ! TODO replace truth
+        truth_flat = truth.reshape(-1).long()
         loss = criterion(output_flat, truth_flat)
 
         loss.backward()
@@ -73,7 +73,6 @@ def evaluate(eval_model: torch.nn.Module,
             outputs = eval_model(data, targets)
             output_flat = outputs.reshape(-1,
                                           eval_model.vocabulary_size).double()
-            # ! TODO replace truth
             truth_flat = truth.reshape(-1).long()
 
             loss = criterion(output_flat, truth_flat).detach().item()
@@ -86,7 +85,7 @@ def raise_dataset_temperature(dataset_l: List[src.inputs.TeamNameLoader],
                               epoch: int):
 
     for dataset in dataset_l:
-        dataset.temperature = epoch * 0.2
+        dataset.temperature = epoch * 0.
 
 
 def train(
@@ -121,32 +120,33 @@ def train(
             best_model = model
 
         scheduler.step(val_loss)
-        raise_dataset_temperature([dataset_loader_train, dataset_loader_valid], epoch)
+        raise_dataset_temperature(
+            [dataset_loader_train, dataset_loader_valid], epoch)
 
 
 def main():
     device = torch.device(
         'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
-    # device = 'cpu'
+    device = 'cpu'
 
     dataset_path = pathlib.Path(R"ctftime_team_names.txt")
     vocabulary_d = src.utils.alphabet_d
 
     dataset_path_train, dataset_path_valid, dataset_path_test = src.utils.split_dataset(
-        dataset_path, (0.7, 0.2, 0.1))
+        dataset_path, (0.2, 0.1, 0.7))
 
     # --- TRAINING PARAMS ---
-    learning_rate = 5e-4
-    batch_size = 64
-    epochs = 5
+    learning_rate = 5e-3
+    batch_size = 128
+    epochs = 3
 
     # --- MODEL PARAMS ---
-    model_size = 128
-    head_n = 8
-    encoder_layers_n = 4
-    decoder_layers_n = 4
-    feedforward_size = 526
+    model_size = 32
+    head_n = 2
+    encoder_layers_n = 1
+    decoder_layers_n = 1
+    feedforward_size = 64
 
     dataset_loader_train = src.inputs.get_dataset(dataset_path_train,
                                                   mask=True,
@@ -163,7 +163,7 @@ def main():
     dataset_loader_test = src.inputs.get_dataset(dataset_path_test,
                                                  mask=True,
                                                  batch_size=1,
-                                                 initial_temperature=0.1,
+                                                 initial_temperature=0.0,
                                                  drop_last=True,
                                                  device=device)
 
@@ -208,7 +208,7 @@ def main():
                                 for i in truth[:-1, :].reshape(-1))
             team_name = ''.join(
                 src.utils.alphabet_l[i]
-                for i in torch.argmax(decoded, dim=-1).reshape(-1))
+                for i in model.greedy_decode(data))
 
             print(data_name, team_name)
         pass

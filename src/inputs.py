@@ -140,7 +140,7 @@ class TeamNameLoader:
         binomial_temp = torch.distributions.Binomial(tensor_len, p_temp)
         n_draw = binomial_temp.sample().long().item()
 
-        if n_draw == 0: 
+        if n_draw == 0:
             return torch.Tensor([]).to(self.device).long()
 
         return torch.multinomial(torch.ones(tensor_len), n_draw).to(self.device).long()
