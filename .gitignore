@@ -1,3 +1,10 @@
 .vscode
 .mypy_cache
+.data
 *.pyc
+
+test.py
+
+ctftime_team_names_train.txt
+ctftime_team_names_valid.txt
+ctftime_team_names_test.txt

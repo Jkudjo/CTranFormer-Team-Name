@@ -1,21 +1,27 @@
+import itertools
+import math
+import pathlib
+import time
+from typing import Callable, List, Union
+
 import torch
 import torch.nn as nn
-import numpy as np
 
 import src.char_prediction
 import src.inputs
 import src.utils
 
-import time
-import pathlib
-import math
-import itertools
-from typing import Callable, List
 
+Scheduler = Union[torch.optim.lr_scheduler.ReduceLROnPlateau, 
+                  torch.optim.lr_scheduler.ExponentialLR,
+                  torch.optim.lr_scheduler.LambdaLR,
+                  torch.optim.lr_scheduler.MultiStepLR,
+                  torch.optim.lr_scheduler.CyclicLR,
+                  torch.optim.lr_scheduler.CosineAnnealingLR]
 
 def train_epoch(model: nn.Module,
                 dataset_loader: src.inputs.TeamNameLoader,
-                scheduler: torch.optim.lr_scheduler._LRScheduler,
+                scheduler: Scheduler,
                 criterion: Callable,
                 epoch: int):
     optimizer = scheduler.optimizer
@@ -122,6 +128,7 @@ def train(
         scheduler.step(val_loss)
         raise_dataset_temperature(
             [dataset_loader_train, dataset_loader_valid], epoch)
+    return best_model
 
 
 def main():
@@ -194,7 +201,7 @@ def main():
     n = 100
     model.eval()
     with torch.no_grad():
-        for i, batch in itertools.takewhile(lambda x: x[0] < n,
+        for _, batch in itertools.takewhile(lambda x: x[0] < n,
                                             enumerate(dataset_loader_test)):
             data, tgt, truth = batch
 
@@ -202,7 +209,7 @@ def main():
 
             # out_max = torch.argmax(out, dim=-1).reshape(-1)
 
-            decoded = model(data, tgt)
+            # decoded = model(data, tgt)
 
             data_name = ''.join(src.utils.alphabet_l[i]
                                 for i in truth[:-1, :].reshape(-1))
