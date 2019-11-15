@@ -1,7 +1,8 @@
 .vscode
 .mypy_cache
 .data
-.venkatvishwanth1
+.venv
+
 *.pyc
 
 test.py
